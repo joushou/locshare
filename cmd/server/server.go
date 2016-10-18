@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
-	"os"
+	"time"
 )
 
 var (
@@ -129,6 +131,12 @@ func (p *pubsub) close() {
 }
 
 func handler(c net.Conn) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic: %v", r)
+		}
+	}()
+
 	r := bufio.NewReader(c)
 	var once sync.Once
 	closerFunc := func() {
@@ -151,13 +159,18 @@ func handler(c net.Conn) {
 	}
 
 	for {
-		s, err := r.ReadString('\n')
+		s, prefix, err := r.ReadLine()
 		if err != nil {
-			// That's an error!
+			if err != io.EOF {
+				log.Printf("error: %v", err)
+			}
 			return
 		}
-		s = s[:len(s)-1]
-		cmds := strings.Split(s, " ")
+		if prefix {
+			log.Printf("too much data from client, terminating")
+			return
+		}
+		cmds := strings.Split(string(s), " ")
 		switch cmds[0] {
 		case "pub":
 			if len(cmds) != 3 {
@@ -171,12 +184,17 @@ func handler(c net.Conn) {
 			}
 			log.Printf("sub: %v", cmds[1])
 			if subSet[cmds[1]] {
-				log.Printf("already subscribed")
 				continue
 			}
 
 			subSet[cmds[1]] = true
 			go func(id string) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("panic: %v", r)
+					}
+				}()
+
 				ph := get(id)
 				defer ph.close()
 				for {
@@ -190,11 +208,52 @@ func handler(c net.Conn) {
 	}
 }
 
+// AcceptLimiter implements rate limiting, as this is publicly accessible!
+// Within a 100ms window, only 16 users may connect. If connections occur at a
+// higher rate, sleep so that the window is enforced. While this protects the
+// server against load and abuse, it does not guarantee service availability,
+// as real users will also be met with a sleep during a DoS, potentially
+// timing out.
+type AcceptLimiter struct {
+	net.Listener
+	times []time.Time
+	idx   int
+	gap   time.Duration
+}
+
+func NewAcceptLimiter(l net.Listener) net.Listener {
+	al := AcceptLimiter{
+		Listener: l,
+		times:    make([]time.Time, 16),
+		gap:      100 * time.Millisecond,
+	}
+
+	for i := range al.times {
+		al.times[i] = time.Now()
+	}
+
+	return &al
+}
+
+func (al *AcceptLimiter) Accept() (net.Conn, error) {
+	n := time.Now()
+	al.times[al.idx] = n
+	al.idx = (al.idx + 1) & 15
+	t := al.times[al.idx].Add(al.gap)
+	if t.After(n) {
+		time.Sleep(t.Sub(n))
+	}
+
+	return al.Listener.Accept()
+}
+
 func main() {
 	l, err := net.Listen("tcp", os.Args[1])
 	if err != nil {
 		return
 	}
+
+	l = NewAcceptLimiter(l)
 
 	for {
 		c, err := l.Accept()
