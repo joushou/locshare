@@ -44,7 +44,7 @@ func get(id string) *pubsub {
 		queueCond: sync.NewCond(&sync.Mutex{}),
 	}
 
-	pubsubmapLock.RLock()
+	pubsubmapLock.Lock()
 	t := pubsubmap[id]
 	if t == nil {
 		t = &thing{
@@ -56,7 +56,7 @@ func get(id string) *pubsub {
 		t.subs = append(t.subs, p)
 		t.Unlock()
 	}
-	pubsubmapLock.RUnlock()
+	pubsubmapLock.Unlock()
 
 	return p
 }
@@ -158,29 +158,40 @@ func handler(c net.Conn) {
 		return err
 	}
 
+
+	var handles []pubsub
+	var close_next bool
 	for {
 		s, prefix, err := r.ReadLine()
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("error: %v", err)
 			}
-			return
+			goto done
 		}
 		if prefix {
 			log.Printf("too much data from client, terminating")
-			return
+			goto done
 		}
 		cmds := strings.Split(string(s), " ")
 		switch cmds[0] {
+		case "close_next":
+			close_next = true
+		case "close":
+			goto done
 		case "pub":
 			if len(cmds) != 3 {
-				return
+				goto done
 			}
 			log.Printf("pub: %s, %s", cmds[1], cmds[2])
 			push(cmds[1], []byte(cmds[2]))
+
+			if close_next {
+				goto done
+			}
 		case "sub":
 			if len(cmds) != 2 {
-				return
+				goto done
 			}
 			log.Printf("sub: %v", cmds[1])
 			if subSet[cmds[1]] {
@@ -188,23 +199,28 @@ func handler(c net.Conn) {
 			}
 
 			subSet[cmds[1]] = true
-			go func(id string) {
+			ph := get(id)
+			handles = append(handles, ph)
+			go func(ph pubsub) {
 				defer func() {
 					if r := recover(); r != nil {
 						log.Printf("panic: %v", r)
 					}
 				}()
 
-				ph := get(id)
-				defer ph.close()
 				for {
 					b := ph.fetch()
 					if err := writerFunc(id, b); err != nil {
 						return
 					}
 				}
-			}(cmds[1])
+			}(ph)
 		}
+	}
+
+done:
+	for _, h := range handles {
+		h.close()
 	}
 }
 
