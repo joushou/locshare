@@ -159,7 +159,7 @@ func handler(c net.Conn) {
 	}
 
 
-	var handles []pubsub
+	var handles []*pubsub
 	var close_next bool
 	for {
 		s, prefix, err := r.ReadLine()
@@ -199,9 +199,9 @@ func handler(c net.Conn) {
 			}
 
 			subSet[cmds[1]] = true
-			ph := get(id)
+			ph := get(cmds[1])
 			handles = append(handles, ph)
-			go func(ph pubsub) {
+			go func(id string, ph *pubsub) {
 				defer func() {
 					if r := recover(); r != nil {
 						log.Printf("panic: %v", r)
@@ -214,7 +214,7 @@ func handler(c net.Conn) {
 						return
 					}
 				}
-			}(ph)
+			}(cmds[1], ph)
 		}
 	}
 
