@@ -3,17 +3,17 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/joushou/ecies"
 	"github.com/joushou/locshare"
+	"github.com/joushou/locshare/client"
 )
 
 func main() {
-	in, err := base64.StdEncoding.DecodeString(os.Args[2])
+	in, err := base64.StdEncoding.DecodeString(os.Args[5])
 	if err != nil {
 		fmt.Printf("invalid key: %v\n", err)
 		return
@@ -23,25 +23,28 @@ func main() {
 		Time: time.Now().UTC().Unix() * 1000,
 	}
 
-	loc.Accuracy, _ = strconv.ParseFloat(os.Args[3], 64)
-	loc.Latitude, _ = strconv.ParseFloat(os.Args[4], 64)
-	loc.Longitude, _ = strconv.ParseFloat(os.Args[5], 64)
-	loc.Altitude, _ = strconv.ParseFloat(os.Args[6], 64)
-	loc.Bearing, _ = strconv.ParseFloat(os.Args[7], 64)
-	loc.Speed, _ = strconv.ParseFloat(os.Args[8], 64)
+	loc.Accuracy, _ = strconv.ParseFloat(os.Args[6], 64)
+	loc.Latitude, _ = strconv.ParseFloat(os.Args[7], 64)
+	loc.Longitude, _ = strconv.ParseFloat(os.Args[8], 64)
+	loc.Altitude, _ = strconv.ParseFloat(os.Args[9], 64)
+	loc.Bearing, _ = strconv.ParseFloat(os.Args[10], 64)
+	loc.Speed, _ = strconv.ParseFloat(os.Args[11], 64)
 
 	buf := locshare.Encode(loc)
 
-	c, err := net.Dial("tcp", os.Args[1])
+	res, err := ecies.Encrypt(buf, in)
 	if err != nil {
-		fmt.Printf("error dialing service: %v\n", err)
+		fmt.Printf("error encrypting thingie: %v\n", err)
 		return
 	}
 
-	res, err := ecies.Encrypt(buf, in)
-
-	fmt.Fprintf(c, "pub %s %s\n", os.Args[2], base64.StdEncoding.EncodeToString(res))
-
-	c.Close()
-
+	c := client.New(os.Args[1])
+	if err := c.Login(os.Args[2], os.Args[3], []string{"interactive", "publish"}); err != nil {
+		fmt.Printf("authentication failed: %v\n", err)
+		return
+	}
+	if err := c.SendMessage(os.Args[4], res); err != nil {
+		fmt.Printf("push failed: %v\n", err)
+		return
+	}
 }
