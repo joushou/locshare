@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/joushou/locshare/mux"
-	"github.com/joushou/locshare/sessions"
-	"github.com/joushou/locshare/users"
+	"github.com/kennylevinsen/locshare/mux"
+	"github.com/kennylevinsen/locshare/sessions"
+	"github.com/kennylevinsen/locshare/users"
 
 	"github.com/gorilla/websocket"
 )

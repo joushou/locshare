@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joushou/locshare/client"
+	"github.com/kennylevinsen/locshare/client"
 )
 
 func main() {

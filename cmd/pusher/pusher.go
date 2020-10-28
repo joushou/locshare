@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/joushou/ecies"
-	"github.com/joushou/locshare"
-	"github.com/joushou/locshare/client"
+	"github.com/kennylevinsen/ecies"
+	"github.com/kennylevinsen/locshare"
+	"github.com/kennylevinsen/locshare/client"
 )
 
 func main() {

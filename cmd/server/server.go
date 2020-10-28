@@ -3,7 +3,7 @@ package main
 import (
 	"net/http"
 
-	"github.com/joushou/locshare/server"
+	"github.com/kennylevinsen/locshare/server"
 )
 
 func main() {

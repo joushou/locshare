@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/crypto/curve25519"
 
-	"github.com/joushou/ecies"
-	"github.com/joushou/locshare"
+	"github.com/kennylevinsen/ecies"
+	"github.com/kennylevinsen/locshare"
 )
 
 func main() {
